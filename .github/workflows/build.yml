@@ -1,0 +1,74 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 'stable'
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Create Flutter project
+        run: flutter create my_app
+
+      - name: Add webview_windows
+        working-directory: my_app
+        run: flutter pub add webview_windows
+
+      - name: Write main.dart
+        working-directory: my_app/lib
+        shell: pwsh
+        run: |
+          @'
+          import 'package:flutter/material.dart';
+          import 'package:webview_windows/webview_windows.dart';
+          
+          void main() => runApp(const MyApp());
+          
+          class MyApp extends StatefulWidget {
+            const MyApp({super.key});
+            @override
+            State<MyApp> createState() => _MyAppState();
+          }
+          
+          class _MyAppState extends State<MyApp> {
+            final _controller = WebviewController();
+          
+            @override
+            void initState() {
+              super.initState();
+              _controller.initialize().then((_) => _controller.loadUrl('https://www.cretalive.gr/'));
+            }
+          
+            @override
+            Widget build(BuildContext context) => MaterialApp(
+              debugShowCheckedModeBanner: false,
+              home: Scaffold(
+                appBar: AppBar(title: const Text('Cretalive')),
+                body: Webview(_controller),
+              ),
+            );
+          }
+          '@ | Set-Content main.dart
+
+      - name: Build Windows EXE
+        working-directory: my_app
+        run: flutter build windows --release
+
+      - name: Upload EXE artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cretalive_Windows
+          path: my_app/build/windows/x64/runner/Release/
